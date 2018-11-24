@@ -15,6 +15,16 @@ class Tensor():
               int x = get_global_id(0);
               res_g[x] = a_g[x] + b_g[x];
             }
+
+            __kernel void mul(
+            __global const float *a_g, __global const float *b_g, __global float *res_g)
+            {
+              int x = get_global_id(0);
+              res_g[x] = a_g[x] * b_g[x];
+            }
+
+
+
             """).build()
 
         @property
@@ -45,6 +55,21 @@ class Tensor():
         res_g = cl.Buffer(ctx, mf.WRITE_ONLY, self.data.nbytes)
         
         self.prg.add(queue, self.data.flatten().shape, None, a_g, b_g, res_g)
+
+        cl.enqueue_copy(queue, result.data, res_g)
+        return result
+
+    def __mul__(self,other):
+
+        result = Tensor(np.empty_like(self.data))
+        
+        mf = cl.mem_flags
+        a_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=self.data)
+        b_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=other.data)
+
+        res_g = cl.Buffer(ctx, mf.WRITE_ONLY, self.data.nbytes)
+        
+        self.prg.mul(queue, self.data.flatten().shape, None, a_g, b_g, res_g)
 
         cl.enqueue_copy(queue, result.data, res_g)
         return result
