@@ -4,6 +4,7 @@ import pyopencl as cl
 ctx = cl.create_some_context(interactive=False,answers=[0,1])
 queue = cl.CommandQueue(ctx)
 
+
 class Tensor():
     def __init__(self,data):
         self.data = data
@@ -16,9 +17,24 @@ class Tensor():
             }
             """).build()
 
+        @property
+        def shape(self):
+            return self.data.shape
+        
+
     def numpy(self):
         return self.data
 
+    def __repr__(self):
+        return "[ clark.Tensor; shape {}; dtype {}; min {}; max {} ]".format(
+            self.data.shape,
+            self.data.dtype,
+            self.data.min(),
+            self.data.max())
+
+    def __str__(self):
+        return self.__repr__()
+        
     def __add__(self,other):
 
         result = Tensor(np.empty_like(self.data))
@@ -51,10 +67,11 @@ def randn(shape,dtype=np.float32):
 
 
 if __name__ == "__main__":
-    a = ones((50000),np.float32)
-    b = ones((50000),np.float32)
+    a = ones((50,10),np.float32)
+    b = ones((50,10),np.float32)
 
     c = a + b
     print(a.data, " + ", b.data, " = ", c.data)
+
 
 
