@@ -70,7 +70,7 @@ if __name__ == "__main__":
     a = ones((45,20),np.float32)
     b = ones((45,20),np.float32)
 
-    c = a + bb
+    c = a + b
     print(a.data, " + ", b.data, " = ", c.data)
 
     
