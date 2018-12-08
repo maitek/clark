@@ -1,4 +1,4 @@
-# Clark: Python Tensor Libray based on OpenCL
+# Clark: Python Tensor Libray based on PyOpenCL
 
 Implemented Operators:
 - [X] Elementwise Add
