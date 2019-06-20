@@ -8,6 +8,7 @@ queue = cl.CommandQueue(ctx)
 class Tensor():
     def __init__(self,data):
         self.data = data
+        self.data_gpu = None
 
         self.prg = cl.Program(ctx, """
             __kernel void add(
@@ -55,7 +56,17 @@ class Tensor():
     def numpy(self):
         return self.data
 
+    def cpu(self):
+        cl.enqueue_copy(queue, self.data, self.data_gpu)
+        return self
+
+    def gpu(self):
+        mf = cl.mem_flags
+        self.data_gpu = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=self.data)
+        return self
+
     def __repr__(self):
+        self.cpu()
         return "[ clark.Tensor; shape {}; dtype {}; min {}; max {} ]".format(
             self.data.shape,
             self.data.dtype,
@@ -70,14 +81,12 @@ class Tensor():
         result = Tensor(np.empty_like(self.data))
         
         mf = cl.mem_flags
-        a_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=self.data)
-        b_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=other.data)
+        result.data_gpu = cl.Buffer(ctx, mf.READ_ONLY, self.data.nbytes)
 
-        res_g = cl.Buffer(ctx, mf.WRITE_ONLY, self.data.nbytes)
-        
-        self.prg.add(queue, self.data.flatten().shape, None, a_g, b_g, res_g)
+        block_size = 100
+        self.prg.add(queue, self.data.flatten().shape, (block_size,), self.data_gpu, other.data_gpu, result.data_gpu)
 
-        cl.enqueue_copy(queue, result.data, res_g)
+        cl.enqueue_copy(queue, result.data, result.data_gpu)
         return result
 
     def __mul__(self,other):
@@ -85,14 +94,12 @@ class Tensor():
         result = Tensor(np.empty_like(self.data))
         
         mf = cl.mem_flags
-        a_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=self.data)
-        b_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=other.data)
+        result.data_gpu = cl.Buffer(ctx, mf.READ_ONLY, self.data.nbytes)
 
-        res_g = cl.Buffer(ctx, mf.WRITE_ONLY, self.data.nbytes)
-        
-        self.prg.mul(queue, self.data.flatten().shape, None, a_g, b_g, res_g)
+        block_size = 100
+        self.prg.mul(queue, self.data.flatten().shape, (block_size,), self.data_gpu, other.data_gpu, result.data_gpu)
 
-        cl.enqueue_copy(queue, result.data, res_g)
+        #cl.enqueue_copy(queue, result.data, res_g)
         return result
 
     def matmult(self,other):
@@ -101,14 +108,17 @@ class Tensor():
         result = Tensor(np.empty_like(self.data))
         
         mf = cl.mem_flags
-        a_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=self.data)
-        b_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=other.data)
-
-        res_g = cl.Buffer(ctx, mf.WRITE_ONLY, self.data.nbytes)
+        result.data_gpu = cl.Buffer(ctx, mf.WRITE_ONLY, self.data.nbytes)
+        #a_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=self.data)
+        #b_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=other.data)
         
-        self.prg.matmult(queue, self.data.flatten().shape, None, a_g, b_g, res_g)
+        block_size = 100
+        N = np.int32(self.data.shape[0])
+        K = np.int32(self.data.shape[1])
+        M = np.int32(other.data.shape[1])
+        self.prg.matmult(queue, self.data.flatten().shape,(block_size,),N,K,M,self.data_gpu, other.data_gpu, result.data_gpu)
 
-        cl.enqueue_copy(queue, result.data, res_g)
+        #cl.enqueue_copy(queue, result.data, res_g)
         return result
 
 def from_numpy(ndarray):
@@ -129,24 +139,36 @@ def randn(shape,dtype=np.float32):
 
 
 if __name__ == "__main__":
+
+    size = 1000
+    num_runs = 10
     
-    a = np.ones((10000,10000),np.float32)
-    b = np.ones((10000,10000),np.float32)
+
+    print("====== Clark (gpu) ======")
+    a = ones((size,size),np.float32).gpu()
+    b = ones((size,size),np.float32).gpu()
+    c = zeros((size,size),np.float32).gpu()
 
     tic = time()
-    c = a + b
-    print(time()-tic)
-
-    a = ones((10000,10000),np.float32)
-    b = ones((10000,10000),np.float32)
+    
+    for i in range(num_runs):
+        c = a.matmult(b)
+        print(".")
+    print("Time total {} runs: {}".format(num_runs,time()-tic))
+    
+    print("====== Numpy (cpu) ======")
+    a = np.ones((size,size),np.float32)
+    b = np.ones((size,size),np.float32)
+    c = np.zeros((size,size),np.float32)
     
     tic = time()
-    c = a + b
-    print(time()-tic)
-
+    for i in range(num_runs):
+        c =np.matmul(a,b)
+        print(".")
+    print("Time total {} runs: {}".format(num_runs,time()-tic))
+    
 
     
-    print(a.data, " + ", b.data, " = ", c.data)
 
     
 
