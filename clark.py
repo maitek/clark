@@ -133,42 +133,40 @@ def zeros(shape,dtype=np.float32):
     t = Tensor(data=np.zeros(shape,dtype=np.float32))
     return t
 
-def randn(shape,dtype=np.float32):
-    t = Tensor(data=np.randn(shape,dtype=np.float32))
+def rand(shape,dtype=np.float32):
+    args = [x for x in shape]
+    t = Tensor(data=np.random.rand(*args).astype(dtype))
     return t
 
 
 if __name__ == "__main__":
 
-    size = 1000
-    num_runs = 10
+    size = 2000
+    num_runs = 5
+    print("Matrix size {} x {}:".format(size,size))
+    print("Number of runs {}".format(num_runs))
+
+    print("====== Clark matmult (gpu) ======")
     
-
-    print("====== Clark (gpu) ======")
-    a = ones((size,size),np.float32).gpu()
-    b = ones((size,size),np.float32).gpu()
-    c = zeros((size,size),np.float32).gpu()
-
     tic = time()
-    
+    a = rand((size,size),np.float32).gpu()
+    b = rand((size,size),np.float32).gpu()
+    c = zeros((size,size),np.float32).gpu()
+    print("Time init: {}".format(time()-tic))
+
     for i in range(num_runs):
         c = a.matmult(b)
-        print(".")
-    print("Time total {} runs: {}".format(num_runs,time()-tic))
+    print("Time total: {}".format(time()-tic))
     
-    print("====== Numpy (cpu) ======")
-    a = np.ones((size,size),np.float32)
-    b = np.ones((size,size),np.float32)
-    c = np.zeros((size,size),np.float32)
     
+    print("====== Numpy matmult (cpu) ======")
     tic = time()
+    a = np.random.rand(size,size).astype(np.float32)
+    b = np.random.rand(size,size).astype(np.float32)
+    c = np.zeros((size,size),np.float32)
+    print("Time init: {}".format(time()-tic))
+
     for i in range(num_runs):
         c =np.matmul(a,b)
-        print(".")
-    print("Time total {} runs: {}".format(num_runs,time()-tic))
+    print("Time total {}".format(time()-tic))
     
-
-    
-
-    
-
