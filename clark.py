@@ -26,26 +26,49 @@ class Tensor():
             }
 
             // First naive implementation
-            __kernel void matmult(const int M, const int N, const int K,
+            __kernel void matmul2(const int M, const int N, const int K,
                                   const __global float* A,
                                   const __global float* B,
                                   __global float* C) {
                 
                 // Thread identifiers
-                const int row = get_global_id(0); // Row ID of C (0..M)
-                const int col = get_global_id(1); // Col ID of C (0..N)
+                const int globalRow = get_global_id(0); // Row ID of C (0..M)
+                const int globalCol = get_global_id(1); // Col ID of C (0..N)
              
                 // Compute a single element (loop over K)
                 float acc = 0.0f;
                 for (int k=0; k<K; k++) {
-                    acc += A[k*M + row] * B[col*K + k];
+                    acc += A[k*M + globalRow] * B[globalCol*K + k];
                 }
              
                 // Store the result
-                C[col*M + row] = acc;
+                C[globalCol*M + globalRow] = acc;
             }
 
-
+            __kernel void
+            matmul(__global float* C, 
+                      __global float* A, 
+                      __global float* B, 
+                      int wA, int wB)
+            {
+              
+               int tx = get_global_id(0); 
+               int ty = get_global_id(1);
+             
+               // value stores the element that is 
+               // computed by the thread
+               float value = 0;
+               for (int k = 0; k < wA; ++k)
+               {
+                  float elementA = A[ty * wA + k];
+                  float elementB = B[k * wB + tx];
+                  value += elementA * elementB;
+               }
+             
+               // Write the matrix to device memory each 
+               // thread writes one element
+               C[ty * wA + tx] = value;
+            }
 
             """).build()
 
@@ -57,7 +80,7 @@ class Tensor():
         return self.data
 
     def cpu(self):
-        cl.enqueue_copy(queue, self.data, self.data_gpu)
+        cl.enqueue_copy(queue, self.data, self.data_gpu) # TODO slow!!"
         return self
 
     def gpu(self):
@@ -86,7 +109,6 @@ class Tensor():
         block_size = 100
         self.prg.add(queue, self.data.flatten().shape, (block_size,), self.data_gpu, other.data_gpu, result.data_gpu)
 
-        cl.enqueue_copy(queue, result.data, result.data_gpu)
         return result
 
     def __mul__(self,other):
@@ -99,26 +121,24 @@ class Tensor():
         block_size = 100
         self.prg.mul(queue, self.data.flatten().shape, (block_size,), self.data_gpu, other.data_gpu, result.data_gpu)
 
-        #cl.enqueue_copy(queue, result.data, res_g)
         return result
 
-    def matmult(self,other):
+    def matmul(self,other):
         # TODO fix this
 
         result = Tensor(np.empty_like(self.data))
         
         mf = cl.mem_flags
         result.data_gpu = cl.Buffer(ctx, mf.WRITE_ONLY, self.data.nbytes)
-        #a_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=self.data)
-        #b_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=other.data)
         
         block_size = 100
         N = np.int32(self.data.shape[0])
         K = np.int32(self.data.shape[1])
         M = np.int32(other.data.shape[1])
-        self.prg.matmult(queue, self.data.flatten().shape,(block_size,),N,K,M,self.data_gpu, other.data_gpu, result.data_gpu)
+        #self.prg.matmul(queue, self.data.flatten().shape,(block_size,),N,K,M,self.data_gpu, other.data_gpu, result.data_gpu)
+        self.prg.matmul(queue, self.data.flatten().shape,(block_size,),result.data_gpu, self.data_gpu, other.data_gpu, N, M)
 
-        #cl.enqueue_copy(queue, result.data, res_g)
+        #cl.enqueue_copy(queue, result.data, result.data_gpu)
         return result
 
 def from_numpy(ndarray):
@@ -138,5 +158,11 @@ def rand(shape,dtype=np.float32):
     t = Tensor(data=np.random.rand(*args).astype(dtype))
     return t
 
+# TODO
 
-
+# matmult not working correctly
+# .cpu() extremely slow!
+# move kernels to other file(s)
+# matmult api should be clark.matmul(a,b) so that is similar to numpy
+# perhaps I could use https://github.com/CNugteren/CLBlast/tree/master/src/pyclblast
+# better test using hypothesis

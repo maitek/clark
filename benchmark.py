@@ -4,7 +4,7 @@ import numpy as np
 
 if __name__ == "__main__":
 
-    size = 2000
+    size = 1500
     num_runs = 5
     print("Matrix size {} x {}:".format(size,size))
     print("Number of runs {}".format(num_runs))
@@ -18,14 +18,14 @@ if __name__ == "__main__":
     print("Time init: {}".format(time()-tic))
 
     for i in range(num_runs):
-        c = a.matmult(b)
+        c = a.matmul(b)
     print("Time total: {}".format(time()-tic))
     
     
     print("====== Numpy matmult (cpu) ======")
     tic = time()
-    a = np.random.rand(size,size).astype(np.float32)
-    b = np.random.rand(size,size).astype(np.float32)
+    a = a.numpy()
+    b = b.numpy()
     c = np.zeros((size,size),np.float32)
     print("Time init: {}".format(time()-tic))
 
